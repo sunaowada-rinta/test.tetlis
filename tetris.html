@@ -39,9 +39,16 @@
       font-size: 0.875rem;
       color: #8b98a5;
     }
+    .control-hint-sp { display: none; }
+    .control-hint-pc { display: block; }
+    @media (max-width: 768px) {
+      .control-hint-pc { display: none; }
+      .control-hint-sp { display: block; font-size: 0.8rem; line-height: 1.5; max-width: 320px; margin: 0 auto; }
+    }
     @media (max-width: 480px) {
       .tetris-header h1 { font-size: 1.35rem; }
-      .tetris-header p { font-size: 0.8rem; }
+      .tetris-header p { font-size: 0.75rem; }
+      .control-hint-sp { max-width: 280px; }
     }
     .game-wrap {
       display: flex;
@@ -64,6 +71,7 @@
       border: 2px solid #2d3a4d;
       border-radius: 6px;
       background: #0f1419;
+      touch-action: none;
     }
     .side-panel {
       display: flex;
@@ -111,7 +119,10 @@
       gap: 8px;
       padding-bottom: env(safe-area-inset-bottom, 8px);
     }
-    .touch-controls.visible { display: grid; }
+    .touch-controls.visible { display: grid !important; }
+    @media (max-width: 768px) {
+      .touch-controls { display: grid !important; }
+    }
     .touch-row {
       display: flex;
       justify-content: center;
@@ -136,7 +147,7 @@
     }
     .touch-btn:active { background: #1d9bf0; transform: scale(0.96); }
     .touch-btn.wide { flex: 1; max-width: 140px; }
-    @media (min-width: 769px) { .touch-controls { display: none !important; } }
+    @media (min-width: 769px) { .touch-controls.visible { display: none !important; } }
     .btn {
       padding: 12px 20px;
       font-family: inherit;
@@ -188,7 +199,8 @@
 <body>
   <div class="tetris-header">
     <h1>テトリス</h1>
-    <p class="control-hint">矢印キーで操作 · スペースでハードドロップ</p>
+    <p class="control-hint control-hint-pc">PC：矢印キーで操作 · スペースで一気に落とす</p>
+    <p class="control-hint control-hint-sp">スマホ：画面タッチ・なぞり（スワイプ）で操作できます。下のボタンか、ゲーム画面を左右・下になぞって動かします。</p>
   </div>
   <div class="game-wrap">
     <div class="board-section">
@@ -470,16 +482,19 @@
       });
 
       function addButtonAction(btn, fn) {
-        function run(e) { e.preventDefault(); fn(); }
+        function run(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          fn();
+        }
         btn.addEventListener("click", run);
         btn.addEventListener("touchend", run, { passive: false });
+        btn.addEventListener("touchstart", function (e) { e.preventDefault(); }, { passive: false });
       }
       var touchPanel = document.getElementById("touch-controls");
-      if (("ontouchstart" in window) || (navigator.maxTouchPoints > 0)) touchPanel.classList.add("visible");
-      else if (window.innerWidth < 769) touchPanel.classList.add("visible");
+      if (("ontouchstart" in window) || (navigator.maxTouchPoints > 0) || window.innerWidth < 769) touchPanel.classList.add("visible");
       window.addEventListener("resize", function () {
         if (window.innerWidth < 769) touchPanel.classList.add("visible");
-        else if (!("ontouchstart" in window) && navigator.maxTouchPoints <= 0) touchPanel.classList.remove("visible");
       });
       var gameWrap = document.querySelector(".game-wrap");
       function fitScale() {
@@ -489,10 +504,33 @@
       }
       fitScale();
       window.addEventListener("resize", fitScale);
-      if (touchPanel.classList.contains("visible")) {
-        var hint = document.querySelector(".control-hint");
-        if (hint) hint.textContent = "画面のボタンで操作（PCでは矢印キーも使えます）";
-      }
+
+      var swipeStartX = 0, swipeStartY = 0;
+      canvas.addEventListener("touchstart", function (e) {
+        if (e.touches.length !== 1) return;
+        swipeStartX = e.touches[0].clientX;
+        swipeStartY = e.touches[0].clientY;
+      }, { passive: true });
+      canvas.addEventListener("touchend", function (e) {
+        if (!e.changedTouches || !e.changedTouches[0]) return;
+        if (!isRunning || isPaused || !current) return;
+        var ex = e.changedTouches[0].clientX;
+        var ey = e.changedTouches[0].clientY;
+        var dx = ex - swipeStartX;
+        var dy = ey - swipeStartY;
+        var min = 28;
+        if (Math.abs(dx) < min && Math.abs(dy) < min) return;
+        e.preventDefault();
+        if (Math.abs(dy) >= Math.abs(dx)) {
+          if (dy > 0) hardDrop();
+          else rotate();
+        } else {
+          if (dx < 0) moveLeft();
+          else moveRight();
+        }
+      }, { passive: false });
+      canvas.addEventListener("touchmove", function (e) { if (e.touches.length === 1) e.preventDefault(); }, { passive: false });
+
       addButtonAction(document.getElementById("btn-left"), moveLeft);
       addButtonAction(document.getElementById("btn-right"), moveRight);
       addButtonAction(document.getElementById("btn-rotate"), rotate);
