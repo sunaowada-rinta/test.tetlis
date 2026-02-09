@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>テトリス</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Noto Sans JP", sans-serif;
+      background: linear-gradient(160deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+      color: #e7e9ea;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .tetris-header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .tetris-header h1 {
+      margin: 0 0 4px;
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .tetris-header p {
+      margin: 0;
+      font-size: 0.875rem;
+      color: #8b98a5;
+    }
+    .game-wrap {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .board-section {
+      background: rgba(26, 35, 50, 0.8);
+      border: 1px solid #2d3a4d;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+    #game {
+      display: block;
+      border: 2px solid #2d3a4d;
+      border-radius: 6px;
+      background: #0f1419;
+    }
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 140px;
+    }
+    .panel-box {
+      background: rgba(15, 20, 25, 0.9);
+      border: 1px solid #2d3a4d;
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+    .panel-box h3 {
+      margin: 0 0 8px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #8b98a5;
+    }
+    .panel-box .value {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+    #next-canvas {
+      display: block;
+      margin: 0 auto;
+      border: 1px solid #2d3a4d;
+      border-radius: 4px;
+      background: #0f1419;
+    }
+    .controls-wrap {
+      margin-top: 20px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn {
+      padding: 12px 20px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: white;
+      background: #1d9bf0;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn:hover { background: #1a8cd8; }
+    .btn:active { transform: scale(0.98); }
+    .btn.secondary {
+      background: #2d3a4d;
+      color: #e7e9ea;
+    }
+    .btn.secondary:hover { background: #3d4a5d; }
+    .back-link {
+      margin-top: 24px;
+      font-size: 0.875rem;
+      color: #1d9bf0;
+      text-decoration: none;
+    }
+    .back-link:hover { text-decoration: underline; }
+    .game-over-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    .game-over-overlay.visible { display: flex; }
+    .game-over-box {
+      background: #1a2332;
+      border: 1px solid #2d3a4d;
+      border-radius: 16px;
+      padding: 32px;
+      text-align: center;
+      max-width: 320px;
+    }
+    .game-over-box h2 { margin: 0 0 8px; font-size: 1.5rem; }
+    .game-over-box p { margin: 0 0 20px; color: #8b98a5; }
+  </style>
+</head>
+<body>
+  <div class="tetris-header">
+    <h1>テトリス</h1>
+    <p>矢印キーで操作 · スペースでハードドロップ</p>
+  </div>
+  <div class="game-wrap">
+    <div class="board-section">
+      <canvas id="game" width="300" height="600"></canvas>
+    </div>
+    <div class="side-panel">
+      <div class="panel-box">
+        <h3>スコア</h3>
+        <div class="value" id="score">0</div>
+      </div>
+      <div class="panel-box">
+        <h3>レベル</h3>
+        <div class="value" id="level">1</div>
+      </div>
+      <div class="panel-box">
+        <h3>次のピース</h3>
+        <canvas id="next-canvas" width="120" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="controls-wrap">
+    <button type="button" class="btn" id="btn-start">スタート</button>
+    <button type="button" class="btn secondary" id="btn-pause" disabled>一時停止</button>
+  </div>
+  <a href="index.html" class="back-link">← ログイン画面に戻る</a>
+
+  <div class="game-over-overlay" id="game-over">
+    <div class="game-over-box">
+      <h2>ゲームオーバー</h2>
+      <p>スコア: <strong id="final-score">0</strong></p>
+      <button type="button" class="btn" id="btn-restart">もう一度プレイ</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+      const nextCanvas = document.getElementById("next-canvas");
+      const nextCtx = nextCanvas.getContext("2d");
+
+      const COLS = 10;
+      const ROWS = 20;
+      const BLOCK = 30;
+      const NEXT_BLOCK = 24;
+
+      const SHAPES = [
+        [[1, 1, 1, 1]],
+        [[1, 1], [1, 1]],
+        [[0, 1, 0], [1, 1, 1]],
+        [[1, 1, 0], [0, 1, 1]],
+        [[0, 1, 1], [1, 1, 0]],
+        [[1, 0, 0], [1, 1, 1]],
+        [[0, 0, 1], [1, 1, 1]],
+      ];
+      const COLORS = ["#00d4ff", "#39ff14", "#ff6b35", "#bf00ff", "#00ff9f", "#ffea00", "#ff3366"];
+
+      let grid = [];
+      let score = 0;
+      let level = 1;
+      let lines = 0;
+      let current = null;
+      let next = null;
+      let x = 0;
+      let y = 0;
+      let gameLoopId = null;
+      let isRunning = false;
+      let isPaused = false;
+      let dropInterval = 500;
+
+      function initGrid() {
+        grid = Array(ROWS).fill(null).map(function () { return Array(COLS).fill(0); });
+      }
+
+      function randomPiece() {
+        var id = Math.floor(Math.random() * SHAPES.length);
+        return { shape: SHAPES[id].map(function (r) { return r.slice(); }), color: COLORS[id] };
+      }
+
+      function spawnPiece() {
+        current = next || randomPiece();
+        next = randomPiece();
+        x = Math.floor(COLS / 2) - Math.ceil(current.shape[0].length / 2);
+        y = 0;
+        drawNext();
+        if (collide()) {
+          endGame();
+          return;
+        }
+      }
+
+      function collide() {
+        if (!current) return false;
+        for (var row = 0; row < current.shape.length; row++) {
+          for (var col = 0; col < current.shape[row].length; col++) {
+            if (!current.shape[row][col]) continue;
+            var ny = y + row;
+            var nx = x + col;
+            if (ny >= ROWS || nx < 0 || nx >= COLS) return true;
+            if (ny >= 0 && grid[ny][nx]) return true;
+          }
+        }
+        return false;
+      }
+
+      function merge() {
+        if (!current) return;
+        current.shape.forEach(function (row, dy) {
+          row.forEach(function (cell, dx) {
+            if (cell && y + dy >= 0) grid[y + dy][x + dx] = current.color;
+          });
+        });
+        var cleared = 0;
+        for (var r = ROWS - 1; r >= 0; r--) {
+          if (grid[r].every(function (c) { return c; })) {
+            grid.splice(r, 1);
+            grid.unshift(Array(COLS).fill(0));
+            cleared++;
+            r++;
+          }
+        }
+        if (cleared > 0) {
+          lines += cleared;
+          score += cleared * 100 * level;
+          level = Math.floor(lines / 10) + 1;
+          dropInterval = Math.max(100, 500 - (level - 1) * 40);
+          document.getElementById("score").textContent = score;
+          document.getElementById("level").textContent = level;
+        }
+        spawnPiece();
+      }
+
+      function drawBlock(ctx, c, r, color, size) {
+        var pad = size > 20 ? 2 : 1;
+        ctx.fillStyle = color;
+        ctx.fillRect(c * size + pad, r * size + pad, size - pad * 2, size - pad * 2);
+      }
+
+      function draw() {
+        ctx.fillStyle = "#0f1419";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        grid.forEach(function (row, r) {
+          row.forEach(function (cell, c) {
+            if (cell) drawBlock(ctx, c, r, cell, BLOCK);
+          });
+        });
+        if (current) {
+          current.shape.forEach(function (row, dy) {
+            row.forEach(function (cell, dx) {
+              if (cell) drawBlock(ctx, x + dx, y + dy, current.color, BLOCK);
+            });
+          });
+        }
+      }
+
+      function drawNext() {
+        nextCtx.fillStyle = "#0f1419";
+        nextCtx.fillRect(0, 0, nextCanvas.width, nextCanvas.height);
+        if (!next) return;
+        var offX = (4 - next.shape[0].length) / 2;
+        var offY = (4 - next.shape.length) / 2;
+        next.shape.forEach(function (row, dy) {
+          row.forEach(function (cell, dx) {
+            if (cell) drawBlock(nextCtx, offX + dx, offY + dy, next.color, NEXT_BLOCK);
+          });
+        });
+      }
+
+      function tick() {
+        if (isPaused || !isRunning) return;
+        y++;
+        if (collide()) {
+          y--;
+          merge();
+        }
+        draw();
+      }
+
+      function runLoop() {
+        if (!isRunning || isPaused) return;
+        tick();
+        gameLoopId = setTimeout(runLoop, dropInterval);
+      }
+
+      function startGame() {
+        if (isRunning) return;
+        initGrid();
+        score = 0;
+        level = 1;
+        lines = 0;
+        dropInterval = 500;
+        document.getElementById("score").textContent = "0";
+        document.getElementById("level").textContent = "1";
+        document.getElementById("game-over").classList.remove("visible");
+        isRunning = true;
+        isPaused = false;
+        document.getElementById("btn-pause").disabled = false;
+        document.getElementById("btn-pause").textContent = "一時停止";
+        next = null;
+        spawnPiece();
+        draw();
+        runLoop();
+      }
+
+      function pauseGame() {
+        if (!isRunning) return;
+        isPaused = !isPaused;
+        document.getElementById("btn-pause").textContent = isPaused ? "再開" : "一時停止";
+        if (!isPaused) runLoop();
+      }
+
+      function endGame() {
+        isRunning = false;
+        if (gameLoopId) clearTimeout(gameLoopId);
+        gameLoopId = null;
+        document.getElementById("btn-pause").disabled = true;
+        document.getElementById("final-score").textContent = score;
+        document.getElementById("game-over").classList.add("visible");
+      }
+
+      document.addEventListener("keydown", function (e) {
+        if (!isRunning || isPaused) {
+          if (e.key === " ") e.preventDefault();
+          return;
+        }
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          x--;
+          if (collide()) x++;
+          draw();
+        }
+        if (e.key === "ArrowRight") {
+          e.preventDefault();
+          x++;
+          if (collide()) x--;
+          draw();
+        }
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          y++;
+          if (collide()) { y--; merge(); } else score += 1;
+          document.getElementById("score").textContent = score;
+          draw();
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          var prev = current.shape.map(function (r) { return r.slice(); });
+          current.shape = current.shape[0].map(function (_, i) {
+            return current.shape.map(function (r) { return r[i]; }).reverse();
+          });
+          if (collide()) current.shape = prev;
+          draw();
+        }
+        if (e.key === " ") {
+          e.preventDefault();
+          while (!collide()) y++;
+          y--;
+          merge();
+          draw();
+        }
+      });
+
+      document.getElementById("btn-start").addEventListener("click", startGame);
+      document.getElementById("btn-pause").addEventListener("click", pauseGame);
+      document.getElementById("btn-restart").addEventListener("click", function () {
+        document.getElementById("game-over").classList.remove("visible");
+        startGame();
+      });
+    })();
+  </script>
+</body>
+</html>
