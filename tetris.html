@@ -2,13 +2,15 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <title>テトリス</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
+    html { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     body {
       margin: 0;
       min-height: 100vh;
@@ -19,7 +21,8 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: 12px;
+      padding-bottom: env(safe-area-inset-bottom, 12px);
     }
     .tetris-header {
       text-align: center;
@@ -36,12 +39,18 @@
       font-size: 0.875rem;
       color: #8b98a5;
     }
+    @media (max-width: 480px) {
+      .tetris-header h1 { font-size: 1.35rem; }
+      .tetris-header p { font-size: 0.8rem; }
+    }
     .game-wrap {
       display: flex;
       gap: 24px;
       align-items: flex-start;
       flex-wrap: wrap;
       justify-content: center;
+      max-width: 100%;
+      transform-origin: center top;
     }
     .board-section {
       background: rgba(26, 35, 50, 0.8);
@@ -88,12 +97,46 @@
       background: #0f1419;
     }
     .controls-wrap {
-      margin-top: 20px;
+      margin-top: 16px;
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
       justify-content: center;
     }
+    .touch-controls {
+      display: none;
+      margin-top: 16px;
+      width: 100%;
+      max-width: 300px;
+      gap: 8px;
+      padding-bottom: env(safe-area-inset-bottom, 8px);
+    }
+    .touch-controls.visible { display: grid; }
+    .touch-row {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+    }
+    .touch-btn {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      min-width: 56px;
+      min-height: 48px;
+      padding: 10px 14px;
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #e7e9ea;
+      background: rgba(45, 58, 77, 0.95);
+      border: 1px solid #3d4a5d;
+      border-radius: 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .touch-btn:active { background: #1d9bf0; transform: scale(0.96); }
+    .touch-btn.wide { flex: 1; max-width: 140px; }
+    @media (min-width: 769px) { .touch-controls { display: none !important; } }
     .btn {
       padding: 12px 20px;
       font-family: inherit;
@@ -145,7 +188,7 @@
 <body>
   <div class="tetris-header">
     <h1>テトリス</h1>
-    <p>矢印キーで操作 · スペースでハードドロップ</p>
+    <p class="control-hint">矢印キーで操作 · スペースでハードドロップ</p>
   </div>
   <div class="game-wrap">
     <div class="board-section">
@@ -170,7 +213,18 @@
     <button type="button" class="btn" id="btn-start">スタート</button>
     <button type="button" class="btn secondary" id="btn-pause" disabled>一時停止</button>
   </div>
-  <a href="index.html" class="back-link">← ログイン画面に戻る</a>
+  <div class="touch-controls" id="touch-controls">
+    <div class="touch-row">
+      <button type="button" class="touch-btn" id="btn-left" aria-label="左">← 左</button>
+      <button type="button" class="touch-btn" id="btn-rotate" aria-label="回転">↻ 回転</button>
+      <button type="button" class="touch-btn" id="btn-right" aria-label="右">右 →</button>
+    </div>
+    <div class="touch-row">
+      <button type="button" class="touch-btn wide" id="btn-down" aria-label="下">↓ 下</button>
+      <button type="button" class="touch-btn wide" id="btn-drop" aria-label="一気に落とす">⬇ 一気に落とす</button>
+    </div>
+  </div>
+  <a href="index.html" class="back-link">← トップに戻る</a>
 
   <div class="game-over-overlay" id="game-over">
     <div class="game-over-box">
@@ -368,47 +422,82 @@
         document.getElementById("game-over").classList.add("visible");
       }
 
+      function moveLeft() {
+        if (!isRunning || isPaused || !current) return;
+        x--;
+        if (collide()) x++;
+        draw();
+      }
+      function moveRight() {
+        if (!isRunning || isPaused || !current) return;
+        x++;
+        if (collide()) x--;
+        draw();
+      }
+      function rotate() {
+        if (!isRunning || isPaused || !current) return;
+        var prev = current.shape.map(function (r) { return r.slice(); });
+        current.shape = current.shape[0].map(function (_, i) {
+          return current.shape.map(function (r) { return r[i]; }).reverse();
+        });
+        if (collide()) current.shape = prev;
+        draw();
+      }
+      function moveDown() {
+        if (!isRunning || isPaused || !current) return;
+        y++;
+        if (collide()) { y--; merge(); } else { score += 1; document.getElementById("score").textContent = score; }
+        draw();
+      }
+      function hardDrop() {
+        if (!isRunning || isPaused || !current) return;
+        while (!collide()) y++;
+        y--;
+        merge();
+        draw();
+      }
+
       document.addEventListener("keydown", function (e) {
         if (!isRunning || isPaused) {
           if (e.key === " ") e.preventDefault();
           return;
         }
-        if (e.key === "ArrowLeft") {
-          e.preventDefault();
-          x--;
-          if (collide()) x++;
-          draw();
-        }
-        if (e.key === "ArrowRight") {
-          e.preventDefault();
-          x++;
-          if (collide()) x--;
-          draw();
-        }
-        if (e.key === "ArrowDown") {
-          e.preventDefault();
-          y++;
-          if (collide()) { y--; merge(); } else score += 1;
-          document.getElementById("score").textContent = score;
-          draw();
-        }
-        if (e.key === "ArrowUp") {
-          e.preventDefault();
-          var prev = current.shape.map(function (r) { return r.slice(); });
-          current.shape = current.shape[0].map(function (_, i) {
-            return current.shape.map(function (r) { return r[i]; }).reverse();
-          });
-          if (collide()) current.shape = prev;
-          draw();
-        }
-        if (e.key === " ") {
-          e.preventDefault();
-          while (!collide()) y++;
-          y--;
-          merge();
-          draw();
-        }
+        if (e.key === "ArrowLeft") { e.preventDefault(); moveLeft(); }
+        if (e.key === "ArrowRight") { e.preventDefault(); moveRight(); }
+        if (e.key === "ArrowDown") { e.preventDefault(); moveDown(); }
+        if (e.key === "ArrowUp") { e.preventDefault(); rotate(); }
+        if (e.key === " ") { e.preventDefault(); hardDrop(); }
       });
+
+      function addButtonAction(btn, fn) {
+        function run(e) { e.preventDefault(); fn(); }
+        btn.addEventListener("click", run);
+        btn.addEventListener("touchend", run, { passive: false });
+      }
+      var touchPanel = document.getElementById("touch-controls");
+      if (("ontouchstart" in window) || (navigator.maxTouchPoints > 0)) touchPanel.classList.add("visible");
+      else if (window.innerWidth < 769) touchPanel.classList.add("visible");
+      window.addEventListener("resize", function () {
+        if (window.innerWidth < 769) touchPanel.classList.add("visible");
+        else if (!("ontouchstart" in window) && navigator.maxTouchPoints <= 0) touchPanel.classList.remove("visible");
+      });
+      var gameWrap = document.querySelector(".game-wrap");
+      function fitScale() {
+        var w = window.innerWidth - 24;
+        var scale = w < 400 ? Math.min(1, w / 360) : 1;
+        gameWrap.style.transform = scale < 1 ? "scale(" + scale + ")" : "";
+      }
+      fitScale();
+      window.addEventListener("resize", fitScale);
+      if (touchPanel.classList.contains("visible")) {
+        var hint = document.querySelector(".control-hint");
+        if (hint) hint.textContent = "画面のボタンで操作（PCでは矢印キーも使えます）";
+      }
+      addButtonAction(document.getElementById("btn-left"), moveLeft);
+      addButtonAction(document.getElementById("btn-right"), moveRight);
+      addButtonAction(document.getElementById("btn-rotate"), rotate);
+      addButtonAction(document.getElementById("btn-down"), moveDown);
+      addButtonAction(document.getElementById("btn-drop"), hardDrop);
 
       document.getElementById("btn-start").addEventListener("click", startGame);
       document.getElementById("btn-pause").addEventListener("click", pauseGame);
